@@ -282,22 +282,20 @@ contract Multisignio {
      * @dev Triggered when Ether is sent to the contract.
      */
     function() payable external {
-        require(msg.value > 0);
-        require(now > tokenSaleDate);
+        require(msg.value > 1*decimalMultiplier*10);
+        totalFunds += msg.value;
         if (now > tokenSaleDate) {
             uint256 tokenAmount;
             tokenAmount = tokenMultiplier(msg.value);
             balances[msg.sender] += tokenAmount;
             balances[this] = safeSub(balances[this],tokenAmount);
-            totalFunds += msg.value;
             Transfer(this, msg.sender, tokenAmount);
             admin.transfer(msg.value);
         } else if (tokenSaleDate == ~uint256(0)) {
-            require(whitelisted[msg.sender] && msg.value > 2*decimalMultiplier*(10**2));
+            require(whitelisted[msg.sender] && msg.value > 2*decimalMultiplier*(10**2) && totalFunds < 13335*decimalMultiplier*10);
             tokenAmount = 150*msg.value;
             balances[msg.sender] += tokenAmount;
             balances[this] = safeSub(balances[this],tokenAmount);
-            totalFunds += msg.value;
             Transfer(this, msg.sender, tokenAmount);
             admin.transfer(msg.value);
         } else {
@@ -310,10 +308,6 @@ contract Multisignio {
      * @dev The token price adjustes based on both demand & a time-based sale
      */
     function tokenMultiplier(uint256 etherSent) public view returns (uint256) {
-        // if (now < tokenSaleDate + 1 days && (200000000*decimalMultiplier - balances[this]) <= 20000000*decimalMultiplier) {
-        //     require(whitelisted[msg.sender] && etherSent > 2*decimalMultiplier*(10**2));
-        //     return 150*etherSent;
-        // } else
         if (now < tokenSaleDate + 7 days && (200000000*decimalMultiplier - balances[this]) <= 60000000*decimalMultiplier) {
             return 100*etherSent;
         } else if (now < tokenSaleDate + 14 days && (200000000*decimalMultiplier - balances[this]) <= 100000000*decimalMultiplier) {
@@ -336,6 +330,16 @@ contract Multisignio {
         balances[this] = 0;
         tokenSaleDate = ~uint256(0) - 1;
     }
+    
+    /**
+     * @notice Set recirculation contract address
+     * @dev Recirculates tokens acquired through the sale of MSG Wallets,
+     *      helping achieve a stable token price.
+     * @param _contractAddress The recirculation contract address
+     */
+    function setRecirculationContract(address _contractAddress) external isAdmin {
+        recirculationAddress = _contractAddress;
+    }
 
     /**
      * @notice Wallet Creation function
@@ -344,9 +348,11 @@ contract Multisignio {
      * @param _seed The string to base the wallet creation on
      */
     function buyWallet(uint256 _value, bytes32 _seed) public returns (bool success) {
+        uint256 check = ~uint256(0) - 1;
+        require(tokenSaleDate == check && recirculationAddress != 0x0);
         if (_value == transparentCost) {
             balances[msg.sender] = safeSub(balances[msg.sender], transparentCost);
-            balances[this] += transparentCost;
+            balances[recirculationAddress] += transparentCost;
             if (freeWallet[msg.sender]) {
                 availableFreeWallets++;
                 freeWallet[msg.sender] = false;
@@ -356,7 +362,7 @@ contract Multisignio {
             return true;
         } else if (_value == liteCost) {
             balances[msg.sender] = safeSub(balances[msg.sender], liteCost);
-            balances[this] += liteCost;
+            balances[recirculationAddress] += liteCost;
             if (freeWallet[msg.sender]) {
                 availableFreeWallets++;
                 freeWallet[msg.sender] = false;
